@@ -28,7 +28,25 @@ export async function updateSession(request: NextRequest) {
   )
 
   // Refreshing the auth token
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Protect all routes except login and signup
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
+                     request.nextUrl.pathname.startsWith('/signup')
+
+  if (!user && !isAuthPage) {
+    // Redirect to login if not authenticated
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/login'
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if (user && isAuthPage) {
+    // Redirect to home if already logged in and trying to access auth pages
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/'
+    return NextResponse.redirect(redirectUrl)
+  }
 
   return supabaseResponse
 }
