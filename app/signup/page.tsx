@@ -21,6 +21,14 @@ export default function SignupPage() {
     setSuccess(false)
     setLoading(true)
 
+    // Email whitelist - only allow specific email
+    const allowedEmail = 'forestermichael2@gmail.com'
+    if (email.toLowerCase() !== allowedEmail.toLowerCase()) {
+      setError('This email is not authorized to create an account. Contact the administrator.')
+      setLoading(false)
+      return
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       setLoading(false)
@@ -63,6 +71,10 @@ export default function SignupPage() {
           <h1 className="text-2xl font-bold text-center mb-6 text-zinc-900 dark:text-zinc-50">
             Create Account
           </h1>
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded mb-4 text-sm">
+            <strong>Note:</strong> Registration is restricted to authorized family members only.
+          </div>
 
           {success ? (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded mb-4">

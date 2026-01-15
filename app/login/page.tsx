@@ -1,21 +1,78 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+
+const MAX_ATTEMPTS = 5
+const LOCKOUT_DURATION = 15 * 60 * 1000 // 15 minutes in milliseconds
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isLockedOut, setIsLockedOut] = useState(false)
+  const [remainingTime, setRemainingTime] = useState(0)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    checkLockout()
+    const interval = setInterval(checkLockout, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const checkLockout = () => {
+    const lockoutData = localStorage.getItem('loginLockout')
+    if (lockoutData) {
+      const { attempts, lockedUntil } = JSON.parse(lockoutData)
+      const now = Date.now()
+
+      if (lockedUntil && now < lockedUntil) {
+        setIsLockedOut(true)
+        setRemainingTime(Math.ceil((lockedUntil - now) / 1000))
+      } else if (lockedUntil && now >= lockedUntil) {
+        // Lockout expired, clear it
+        localStorage.removeItem('loginLockout')
+        setIsLockedOut(false)
+        setRemainingTime(0)
+      }
+    }
+  }
+
+  const recordFailedAttempt = () => {
+    const lockoutData = localStorage.getItem('loginLockout')
+    const now = Date.now()
+
+    let attempts = 1
+    if (lockoutData) {
+      const data = JSON.parse(lockoutData)
+      attempts = (data.attempts || 0) + 1
+    }
+
+    if (attempts >= MAX_ATTEMPTS) {
+      const lockedUntil = now + LOCKOUT_DURATION
+      localStorage.setItem('loginLockout', JSON.stringify({ attempts, lockedUntil }))
+      setIsLockedOut(true)
+      setRemainingTime(LOCKOUT_DURATION / 1000)
+      setError(`Too many failed attempts. Please try again in 15 minutes.`)
+    } else {
+      localStorage.setItem('loginLockout', JSON.stringify({ attempts }))
+      setError(`Invalid credentials. ${MAX_ATTEMPTS - attempts} attempts remaining.`)
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (isLockedOut) {
+      setError(`Account locked. Please try again in ${Math.ceil(remainingTime / 60)} minutes.`)
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -25,8 +82,10 @@ export default function LoginPage() {
       })
 
       if (error) {
-        setError(error.message)
+        recordFailedAttempt()
       } else {
+        // Clear lockout on successful login
+        localStorage.removeItem('loginLockout')
         router.push('/')
         router.refresh()
       }
